@@ -16,7 +16,7 @@ import type { FilterOpts, ResolvedLink } from "./types.js";
 export function applyFilter(links: ResolvedLink[], opts?: FilterOpts): ResolvedLink[] {
   if (!opts) return links;
 
-  if (opts.show && opts.show.length > 0) {
+  if (opts.show) {
     const showSet = new Set(opts.show);
     return links.filter(
       (link) => showSet.has(link.platform) || showSet.has(link.id),

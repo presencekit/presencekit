@@ -141,4 +141,9 @@ describe("applyFilter()", () => {
     expect(result).toHaveLength(1);
     expect(result[0]!.platform).toBe("github");
   });
+
+  it("show with empty array returns no links", () => {
+    const result = applyFilter(links, { show: [] });
+    expect(result).toHaveLength(0);
+  });
 });
