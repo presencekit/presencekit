@@ -4,8 +4,10 @@
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
+  "sideEffects": false,
   "exports": {
     ".": {
+      "types": "./dist/index.d.ts",
       "import": "./dist/index.mjs",
       "require": "./dist/index.js"
     }
@@ -20,7 +22,7 @@
   ],
   "scripts": {
     "build": "tsup",
-    "test": "vitest run --passWithNoTests",
+    "test": "vitest run",
     "dev": "tsup --watch"
   },
   "devDependencies": {

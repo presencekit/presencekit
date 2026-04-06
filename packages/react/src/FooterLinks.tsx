@@ -181,9 +181,21 @@ function GroupPopoverLinks({
   renderLink?: (link: ResolvedLink) => React.ReactNode;
 }): React.ReactElement {
   const [open, setOpen] = React.useState<string | null>(null);
+  const containerRef = React.useRef<HTMLUListElement>(null);
+
+  React.useEffect(() => {
+    if (!open) return;
+    function handleKeyDown(e: KeyboardEvent): void {
+      if (e.key === "Escape") {
+        setOpen(null);
+      }
+    }
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [open]);
 
   return (
-    <ul style={ROOT_STYLE}>
+    <ul style={ROOT_STYLE} ref={containerRef}>
       {Array.from(groups.entries()).map(([platform, links]) => {
         if (links.length === 1) {
           const link = links[0]!;
@@ -208,6 +220,12 @@ function GroupPopoverLinks({
               aria-haspopup="true"
               aria-label={`${first.label} (${links.length} accounts)`}
               onClick={() => setOpen(isOpen ? null : platform)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  setOpen(null);
+                  e.currentTarget.focus();
+                }
+              }}
               style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }}
             >
               {renderLink ? renderLink(first) : <IconLink link={first} />}
@@ -226,8 +244,8 @@ function GroupPopoverLinks({
               </span>
             </button>
             {isOpen && (
-              <div
-                role="dialog"
+              <ul
+                role="menu"
                 aria-label={`${first.label} accounts`}
                 style={{
                   position: "absolute",
@@ -239,16 +257,16 @@ function GroupPopoverLinks({
                   padding: "0.5rem",
                   zIndex: 10,
                   minWidth: "8rem",
+                  listStyle: "none",
+                  margin: 0,
                 }}
               >
-                <ul style={{ ...ROOT_STYLE, flexDirection: "column" }}>
-                  {links.map((link) => (
-                    <li key={link.id}>
-                      {renderLink ? renderLink(link) : <IconLink link={link} />}
-                    </li>
-                  ))}
-                </ul>
-              </div>
+                {links.map((link) => (
+                  <li key={link.id} role="menuitem">
+                    {renderLink ? renderLink(link) : <IconLink link={link} />}
+                  </li>
+                ))}
+              </ul>
             )}
           </li>
         );
