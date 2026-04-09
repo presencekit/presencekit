@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { normalise, createPresence, applyFilter } from "./index.js";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { normalise, createPresence, applyFilter, validate, fetchLinks } from "./index.js";
 
 // ---------------------------------------------------------------------------
 // normalise()
@@ -65,28 +65,67 @@ describe("normalise()", () => {
 // ---------------------------------------------------------------------------
 
 describe("createPresence()", () => {
-  it("returns getLinks() function", () => {
-    const p = createPresence({ github: "https://github.com/acme" });
+  it("returns getLinks() function (inline config)", async () => {
+    const p = await createPresence({ github: "https://github.com/acme" });
     expect(typeof p.getLinks).toBe("function");
     const links = p.getLinks();
     expect(links).toHaveLength(1);
     expect(links[0]!.platform).toBe("github");
   });
 
-  it("handles multiple platforms", () => {
-    const p = createPresence({
+  it("handles multiple platforms (inline config)", async () => {
+    const p = await createPresence({
       github: "https://github.com/acme",
       twitter: "https://x.com/acme",
     });
     expect(p.getLinks()).toHaveLength(2);
   });
 
-  it("unknown platform key passes through as custom", () => {
-    const p = createPresence({ mysite: "https://mysite.example.com" });
+  it("unknown platform key passes through as custom (inline config)", async () => {
+    const p = await createPresence({ mysite: "https://mysite.example.com" });
     const links = p.getLinks();
     expect(links).toHaveLength(1);
     expect(links[0]!.platform).toBe("mysite");
     expect(links[0]!.icon.svg).toBe("");
+  });
+
+  it("fetches from URL when a string is passed", async () => {
+    const mockConfig = { github: "https://github.com/acme" };
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve(mockConfig),
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    const p = await createPresence("https://example.com/links.json");
+    expect(mockFetch).toHaveBeenCalledWith("https://example.com/links.json", {
+      cache: "force-cache",
+      headers: undefined,
+    });
+    expect(p.getLinks()).toHaveLength(1);
+    expect(p.getLinks()[0]!.platform).toBe("github");
+
+    vi.unstubAllGlobals();
+  });
+
+  it("passes FetchOpts through to fetch when using URL", async () => {
+    const mockConfig = { twitter: "https://x.com/acme" };
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve(mockConfig),
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    await createPresence("https://example.com/links.json", {
+      cache: "no-store",
+      headers: { Authorization: "Bearer token" },
+    });
+    expect(mockFetch).toHaveBeenCalledWith("https://example.com/links.json", {
+      cache: "no-store",
+      headers: { Authorization: "Bearer token" },
+    });
+
+    vi.unstubAllGlobals();
   });
 });
 
@@ -145,5 +184,121 @@ describe("applyFilter()", () => {
   it("show with empty array returns no links", () => {
     const result = applyFilter(links, { show: [] });
     expect(result).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// validate()
+// ---------------------------------------------------------------------------
+
+describe("validate()", () => {
+  it("accepts a valid config with string values", () => {
+    const result = validate({ github: "https://github.com/acme" });
+    expect(result).toEqual({ github: "https://github.com/acme" });
+  });
+
+  it("accepts a valid config with LinkEntry objects", () => {
+    const result = validate({ github: { url: "https://github.com/acme", label: "Personal" } });
+    expect(result).toEqual({ github: { url: "https://github.com/acme", label: "Personal" } });
+  });
+
+  it("accepts a valid config with LinkEntry arrays", () => {
+    const result = validate({
+      github: [
+        { url: "https://github.com/personal", label: "Personal" },
+        { url: "https://github.com/work", label: "Work" },
+      ],
+    });
+    expect(result.github).toHaveLength(2);
+  });
+
+  it("passes through unknown platform keys", () => {
+    const result = validate({ mysite: "https://mysite.example.com" });
+    expect(result).toEqual({ mysite: "https://mysite.example.com" });
+  });
+
+  it("throws when root is not an object", () => {
+    expect(() => validate("not an object")).toThrow("root must be a JSON object");
+    expect(() => validate(null)).toThrow("root must be a JSON object");
+    expect(() => validate([1, 2])).toThrow("root must be a JSON object");
+  });
+
+  it("throws on invalid platform value", () => {
+    expect(() => validate({ github: 42 })).toThrow("'github' must be a string or LinkEntry");
+  });
+
+  it("throws on array containing non-LinkEntry item", () => {
+    expect(() => validate({ github: [{ notUrl: "bad" }] })).toThrow(
+      "'github' array contains an entry that is not a valid LinkEntry",
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// fetchLinks()
+// ---------------------------------------------------------------------------
+
+describe("fetchLinks()", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("fetches and returns a validated config", async () => {
+    const mockConfig = { github: "https://github.com/acme" };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve(mockConfig),
+    }));
+
+    const result = await fetchLinks("https://example.com/links.json");
+    expect(result).toEqual(mockConfig);
+  });
+
+  it("uses force-cache by default", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ github: "https://github.com/acme" }),
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    await fetchLinks("https://example.com/links.json");
+    expect(mockFetch).toHaveBeenCalledWith("https://example.com/links.json", {
+      cache: "force-cache",
+      headers: undefined,
+    });
+  });
+
+  it("respects custom cache and headers opts", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ twitter: "https://x.com/acme" }),
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    await fetchLinks("https://example.com/links.json", {
+      cache: "no-store",
+      headers: { Authorization: "Bearer abc" },
+    });
+    expect(mockFetch).toHaveBeenCalledWith("https://example.com/links.json", {
+      cache: "no-store",
+      headers: { Authorization: "Bearer abc" },
+    });
+  });
+
+  it("throws on non-ok HTTP response", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 404 }));
+    await expect(fetchLinks("https://example.com/links.json")).rejects.toThrow(
+      "failed to fetch links from https://example.com/links.json — 404",
+    );
+  });
+
+  it("throws when fetched JSON fails validation", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve("not an object"),
+    }));
+    await expect(fetchLinks("https://example.com/links.json")).rejects.toThrow(
+      "root must be a JSON object",
+    );
   });
 });

@@ -1,6 +1,7 @@
-import type { FilterOpts, LinkEntry, PlatformConfig, PresenceConfig, ResolvedLink } from "./types.js";
+import type { FetchOpts, FilterOpts, LinkEntry, PlatformConfig, Presence, PresenceConfig, ResolvedLink } from "./types.js";
 import { PLATFORMS } from "./platforms.js";
 import { applyFilter } from "./filter.js";
+import { fetchLinks } from "./fetch.js";
 
 /**
  * Converts a string or `LinkEntry` label into a URL-safe slug.
@@ -63,37 +64,51 @@ export function normalise(platform: string, config: PlatformConfig): ResolvedLin
 }
 
 /**
- * Creates a presence instance from a `PresenceConfig`.
+ * Creates a presence instance from a remote `links.json` URL (BYOL model).
  *
- * Unknown platform keys (not in the built-in `PLATFORMS` registry) are treated as
- * custom platforms and pass through without icon enrichment. Their label defaults
- * to the key itself.
+ * The URL is fetched at call time with `force-cache` by default, making it
+ * suitable for build-time invocation in Next.js, Astro, SvelteKit, etc.
  *
- * @param config - The presence configuration object.
- * @returns An object with a `getLinks` method for querying resolved links.
+ * @param url - Public URL of a hosted `links.json` file.
+ * @param opts - Optional fetch configuration.
+ * @returns A `Presence` instance with a `getLinks` method.
  *
  * @example
  * ```ts
- * const presence = createPresence({
- *   github: "https://github.com/acme",
- *   twitter: [
- *     { url: "https://x.com/acme", label: "Company" },
- *     { url: "https://x.com/acme_dev", label: "Dev" },
- *   ],
- * });
- *
- * const links = presence.getLinks({ show: ["github"] });
+ * // Next.js App Router server component
+ * const presence = await createPresence('https://you.github.io/presence/links.json');
  * ```
  */
-export function createPresence(config: PresenceConfig): {
-  /**
-   * Returns resolved links, optionally filtered by platform or entry ID.
-   *
-   * @param opts - Optional filter options.
-   * @returns An array of `ResolvedLink` objects.
-   */
-  getLinks(opts?: FilterOpts): ResolvedLink[];
-} {
+export async function createPresence(url: string, opts?: FetchOpts): Promise<Presence>;
+
+/**
+ * Creates a presence instance from an inline `PresenceConfig` object.
+ *
+ * Useful for testing, local development, or simple cases where hosting a
+ * remote file is unnecessary. The function is still async for API consistency.
+ *
+ * @param config - Inline presence configuration.
+ * @returns A `Presence` instance with a `getLinks` method.
+ *
+ * @example
+ * ```ts
+ * const presence = await createPresence({
+ *   github: 'https://github.com/acme',
+ *   twitter: 'https://x.com/acme',
+ * });
+ * ```
+ */
+export async function createPresence(config: PresenceConfig): Promise<Presence>;
+
+export async function createPresence(
+  urlOrConfig: string | PresenceConfig,
+  opts?: FetchOpts,
+): Promise<Presence> {
+  const config: PresenceConfig =
+    typeof urlOrConfig === "string"
+      ? await fetchLinks(urlOrConfig, opts)
+      : urlOrConfig;
+
   const allLinks: ResolvedLink[] = Object.entries(config).flatMap(
     ([platform, platformConfig]) => normalise(platform, platformConfig),
   );
