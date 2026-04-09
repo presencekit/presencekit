@@ -1,6 +1,7 @@
 # @presencekit/core
 
 > Framework-agnostic library for managing and resolving social/developer presence links.
+> Bring Your Own Links — host a `links.json` anywhere, point presencekit at it, and every site stays in sync.
 
 [![npm](https://img.shields.io/npm/v/@presencekit/core)](https://www.npmjs.com/package/@presencekit/core)
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](../../LICENSE)
@@ -17,20 +18,47 @@ pnpm add @presencekit/core
 yarn add @presencekit/core
 ```
 
+> **React users** — install `@presencekit/react` only. It re-exports everything from core; no dual install needed.
+
+---
+
+## BYOL — Bring Your Own Links
+
+Host a `links.json` file at any public URL (GitHub Pages, Gist, Vercel, R2, etc.) and point presencekit at it. Update the JSON once and every site picks it up on the next deploy.
+
+```json
+{
+  "github": "https://github.com/acme",
+  "twitter": "https://x.com/acme",
+  "linkedin": { "url": "https://linkedin.com/in/acme", "label": "Connect" }
+}
+```
+
 ---
 
 ## Quick Start
 
+### Build-time fetch
+
+Fetch and resolve links at build time (recommended for static sites):
+
+```ts
+import { fetchLinks } from "@presencekit/core";
+
+// In your build script / getStaticProps / loader
+const links = await fetchLinks("https://you.github.io/presence/links.json");
+// → ResolvedLink[]
+```
+
+### Runtime fetch with `createPresence`
+
 ```ts
 import { createPresence } from "@presencekit/core";
 
-const presence = createPresence({
-  github: "https://github.com/acme",
-  twitter: "https://x.com/acme",
-  linkedin: { url: "https://linkedin.com/in/acme", label: "Connect" },
-});
+const presence = createPresence("https://you.github.io/presence/links.json");
 
-const links = presence.getLinks();
+// Fetch and resolve — honours Cache-Control on the JSON response
+const links = await presence.getLinks();
 // → ResolvedLink[]
 ```
 
@@ -38,40 +66,47 @@ const links = presence.getLinks();
 
 ## API
 
-### `createPresence(config)`
+### `fetchLinks(url)`
 
-Creates a presence instance from a map of platform keys to link configurations.
+Fetches and validates the `links.json` at `url`, then resolves it into `ResolvedLink[]`.
+
+```ts
+import { fetchLinks } from "@presencekit/core";
+
+const links = await fetchLinks("https://you.github.io/presence/links.json");
+```
+
+Throws a descriptive error if the JSON does not match the expected schema.
+
+---
+
+### `createPresence(url)`
+
+Creates a presence instance backed by a remote `links.json` URL.
 
 ```ts
 import { createPresence } from "@presencekit/core";
 
-const presence = createPresence({
-  github: "https://github.com/acme",           // plain URL string
-  twitter: { url: "https://x.com/acme" },      // LinkEntry object
-  linkedin: {                                   // LinkEntry with explicit label
-    url: "https://linkedin.com/in/acme",
-    label: "Connect on LinkedIn",
-  },
-});
+const presence = createPresence("https://you.github.io/presence/links.json");
 ```
 
-**Returns** `{ getLinks(opts?: FilterOpts): ResolvedLink[] }`
+**Returns** `{ getLinks(opts?: FilterOpts): Promise<ResolvedLink[]> }`
 
 ---
 
 ### `presence.getLinks(opts?)`
 
-Returns the fully resolved links as a `ResolvedLink[]` array.
+Fetches the remote config (with `Cache-Control` support) and returns the resolved links.
 
 ```ts
 // All links
-const all = presence.getLinks();
+const all = await presence.getLinks();
 
 // Only github and linkedin
-const filtered = presence.getLinks({ show: ["github", "linkedin"] });
+const filtered = await presence.getLinks({ show: ["github", "linkedin"] });
 
 // Everything except twitter
-const withoutTwitter = presence.getLinks({ exclude: ["twitter"] });
+const withoutTwitter = await presence.getLinks({ exclude: ["twitter"] });
 ```
 
 When both `show` and `exclude` are provided, `show` takes priority.
@@ -80,19 +115,22 @@ When both `show` and `exclude` are provided, `show` takes priority.
 
 ### Multiple entries per platform
 
-Pass an array of `LinkEntry` objects to register more than one link for a platform.
+The hosted `links.json` supports arrays for platforms with more than one link:
+
+```json
+{
+  "github": [
+    { "url": "https://github.com/acme",     "label": "Company" },
+    { "url": "https://github.com/acme-dev", "label": "Open Source" }
+  ],
+  "youtube": "https://youtube.com/@acme"
+}
+```
+
+Filter by the auto-generated entry ID:
 
 ```ts
-const presence = createPresence({
-  github: [
-    { url: "https://github.com/acme",     label: "Company" },
-    { url: "https://github.com/acme-dev", label: "Open Source" },
-  ],
-  youtube: "https://youtube.com/@acme",
-});
-
-// Filter by auto-generated entry ID
-const company = presence.getLinks({ show: ["github-company"] });
+const company = await presence.getLinks({ show: ["github-company"] });
 ```
 
 When labels are not provided on multi-entry arrays, they are auto-generated as `"Platform 1"`, `"Platform 2"`, etc.
@@ -101,22 +139,28 @@ When labels are not provided on multi-entry arrays, they are auto-generated as `
 
 ### Entry IDs
 
-Each resolved link has a unique `id` computed as `"{platform}-{slugified-label}"`, for example:
+Each resolved link has a unique `id` computed as `"{platform}-{slugified-label}"`:
 
 | Config | `id` |
 |--------|------|
-| `github: "https://github.com/acme"` | `"github-github"` |
-| `github: { url: "...", label: "Personal" }` | `"github-personal"` |
-| `github: [{ url: "...", label: "Work" }]` | `"github-work"` |
+| `"github": "https://github.com/acme"` | `"github-github"` |
+| `"github": { "url": "...", "label": "Personal" }` | `"github-personal"` |
+| `"github": [{ "url": "...", "label": "Work" }]` | `"github-work"` |
 
-You can also supply an explicit `id` in a `LinkEntry`:
+Supply an explicit `id` in the `links.json` entry to use a stable, custom ID:
 
-```ts
-const presence = createPresence({
-  github: { url: "https://github.com/acme", id: "my-github" },
-});
+```json
+{ "github": { "url": "https://github.com/acme", "id": "my-github" } }
+```
 
-presence.getLinks({ show: ["my-github"] });
+---
+
+## Schema Validation
+
+The fetched JSON is validated against the `PresenceConfig` schema before resolving. An invalid shape throws a clear, actionable error:
+
+```
+PresenceConfig validation error: "twitter" value must be a string, LinkEntry, or LinkEntry[]
 ```
 
 ---
@@ -189,16 +233,6 @@ SVG icons are sourced from [Simple Icons](https://simpleicons.org) (MIT license)
 ## Custom Platforms
 
 Any platform key not in the built-in registry is accepted. Its links are passed through without icon enrichment — `icon.svg` and `icon.png` will be empty strings.
-
-```ts
-const presence = createPresence({
-  mysite: "https://example.com",
-});
-
-const links = presence.getLinks();
-// links[0].platform === "mysite"
-// links[0].icon.svg === ""
-```
 
 ---
 

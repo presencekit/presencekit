@@ -1,6 +1,7 @@
 # @presencekit/react
 
 > React components for rendering social/developer presence links with icon support.
+> Re-exports everything from `@presencekit/core` — one install for React users.
 
 [![npm](https://img.shields.io/npm/v/@presencekit/react)](https://www.npmjs.com/package/@presencekit/react)
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](../../LICENSE)
@@ -10,31 +11,29 @@
 ## Install
 
 ```bash
-npm install @presencekit/core @presencekit/react
+npm install @presencekit/react
 # or
-pnpm add @presencekit/core @presencekit/react
+pnpm add @presencekit/react
 # or
-yarn add @presencekit/core @presencekit/react
+yarn add @presencekit/react
 ```
 
 **Peer dependencies:** `react >=17` and `react-dom >=17` must already be installed in your project.
+
+> `@presencekit/react` re-exports everything from `@presencekit/core`. You do not need to install core separately.
 
 ---
 
 ## Quick Start
 
 ```tsx
-import { createPresence } from "@presencekit/core";
-import { FooterLinks } from "@presencekit/react";
+import { createPresence, FooterLinks } from "@presencekit/react";
 
-const presence = createPresence({
-  github: "https://github.com/acme",
-  twitter: "https://x.com/acme",
-  linkedin: "https://linkedin.com/in/acme",
-});
+const presence = createPresence("https://you.github.io/presence/links.json");
 
-export function Footer() {
-  return <FooterLinks presence={presence} />;
+export async function Footer() {
+  const links = await presence.getLinks();
+  return <FooterLinks links={links} />;
 }
 ```
 
@@ -48,7 +47,7 @@ The main composite component that renders a `<nav>` containing all (or a filtere
 
 | Prop | Type | Default | Description |
 |------|------|---------|-------------|
-| `presence` | `ReturnType<typeof createPresence>` | — | **Required.** Presence instance from `createPresence()` |
+| `links` | `ResolvedLink[]` | — | **Required.** Array of resolved links from `fetchLinks()` or `presence.getLinks()` |
 | `renderStrategy` | `"flat" \| "group-expand" \| "group-popover"` | `"flat"` | Layout strategy (see below) |
 | `show` | `string[]` | — | Show only links matching these platform keys or entry IDs |
 | `exclude` | `string[]` | — | Hide links matching these platform keys or entry IDs |
@@ -64,15 +63,15 @@ The main composite component that renders a `<nav>` containing all (or a filtere
 Renders all links in a flat horizontal row. Best for footers or nav bars with a small, known set of links.
 
 ```tsx
-<FooterLinks presence={presence} renderStrategy="flat" />
+<FooterLinks links={links} renderStrategy="flat" />
 ```
 
 #### `"group-expand"`
 
-Groups links by platform. Platforms with a single entry render as a plain icon link. Platforms with multiple entries render as a button with a count badge; clicking the button expands an inline list of all entries.
+Groups links by platform. Platforms with a single entry render as a plain icon link. Platforms with multiple entries render as a button with a count badge; clicking expands an inline list of all entries.
 
 ```tsx
-<FooterLinks presence={presence} renderStrategy="group-expand" />
+<FooterLinks links={links} renderStrategy="group-expand" />
 ```
 
 #### `"group-popover"`
@@ -80,7 +79,7 @@ Groups links by platform. Platforms with a single entry render as a plain icon l
 Same grouping behaviour as `"group-expand"`, but multi-entry platforms reveal their entries in a floating popover on hover or click. Press `Escape` to dismiss.
 
 ```tsx
-<FooterLinks presence={presence} renderStrategy="group-popover" />
+<FooterLinks links={links} renderStrategy="group-popover" />
 ```
 
 ---
@@ -90,23 +89,14 @@ Same grouping behaviour as `"group-expand"`, but multi-entry platforms reveal th
 Use `show` to allowlist specific platforms or entry IDs, and `exclude` to denylist them. When both are supplied, `show` takes priority.
 
 ```tsx
-const presence = createPresence({
-  github: [
-    { url: "https://github.com/personal", label: "Personal" },
-    { url: "https://github.com/work",     label: "Work" },
-  ],
-  twitter: "https://x.com/acme",
-  linkedin: "https://linkedin.com/in/acme",
-});
-
 // Show only github and twitter
-<FooterLinks presence={presence} show={["github", "twitter"]} />
+<FooterLinks links={links} show={["github", "twitter"]} />
 
 // Hide the work github entry
-<FooterLinks presence={presence} exclude={["github-work"]} />
+<FooterLinks links={links} exclude={["github-work"]} />
 
 // Show only the personal github entry
-<FooterLinks presence={presence} show={["github-personal"]} />
+<FooterLinks links={links} show={["github-personal"]} />
 ```
 
 ---
@@ -117,7 +107,7 @@ Supply a `renderLink` function to take full control of how each link is rendered
 
 ```tsx
 <FooterLinks
-  presence={presence}
+  links={links}
   renderLink={(link) => (
     <a
       key={link.id}
@@ -148,16 +138,13 @@ A lower-level component that renders a single `ResolvedLink` as an accessible an
 ### Example
 
 ```tsx
-import { createPresence } from "@presencekit/core";
-import { IconLink } from "@presencekit/react";
+import { fetchLinks, IconLink } from "@presencekit/react";
 
-const presence = createPresence({
-  github: "https://github.com/acme",
-});
+const links = await fetchLinks("https://you.github.io/presence/links.json");
+const githubLink = links.find((l) => l.platform === "github");
 
 export function GithubBadge() {
-  const link = presence.getLinks()[0];
-  return <IconLink link={link} className="badge" />;
+  return <IconLink link={githubLink} className="badge" />;
 }
 ```
 
@@ -170,11 +157,18 @@ The component renders:
 
 ## TypeScript
 
-All components and their props are fully typed. Import the type definitions as needed:
+All components and their props are fully typed. Import type definitions from `@presencekit/react` — no need to import from core directly:
 
 ```ts
-import type { ResolvedLink } from "@presencekit/core";
-import type { FooterLinksProps, IconLinkProps, RenderStrategy } from "@presencekit/react";
+import type {
+  ResolvedLink,
+  PresenceConfig,
+  LinkEntry,
+  FilterOpts,
+  FooterLinksProps,
+  IconLinkProps,
+  RenderStrategy,
+} from "@presencekit/react";
 ```
 
 ---
