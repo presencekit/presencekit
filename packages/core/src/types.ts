@@ -67,3 +67,36 @@ export type FilterOpts = {
    */
   exclude?: string[];
 };
+
+/**
+ * Options for fetching a remote `links.json` config.
+ */
+export type FetchOpts = {
+  /**
+   * Fetch strategy.
+   * - `'build'` (default) — use `force-cache` for build-time efficiency.
+   * - `'runtime'` — pair with `cache: 'no-store'` or `'no-cache'` for fresh data.
+   */
+  strategy?: "build" | "runtime";
+  /**
+   * Underlying `fetch()` cache mode. Defaults to `'force-cache'`.
+   */
+  cache?: RequestCache;
+  /**
+   * Additional HTTP request headers.
+   */
+  headers?: Record<string, string>;
+};
+
+/**
+ * A presence instance returned by `createPresence`.
+ */
+export type Presence = {
+  /**
+   * Returns resolved links, optionally filtered by platform key or entry ID.
+   *
+   * @param opts - Optional filter options.
+   * @returns An array of `ResolvedLink` objects.
+   */
+  getLinks(opts?: FilterOpts): ResolvedLink[];
+};

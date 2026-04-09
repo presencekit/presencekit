@@ -13,9 +13,11 @@
     }
   },
   "peerDependencies": {
-    "@presencekit/core": "^2.0.0",
     "react": ">=17",
     "react-dom": ">=17"
+  },
+  "dependencies": {
+    "@presencekit/core": "workspace:*"
   },
   "files": [
     "dist"
@@ -26,7 +28,6 @@
     "dev": "tsup --watch"
   },
   "devDependencies": {
-    "@presencekit/core": "workspace:*",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@types/react": "^18.2.79",
