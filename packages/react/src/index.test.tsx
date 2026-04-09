@@ -1,7 +1,8 @@
 import * as React from "react";
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeAll } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { createPresence } from "@presencekit/core";
+import type { Presence } from "@presencekit/core";
 import { IconLink } from "./IconLink.js";
 import { FooterLinks } from "./FooterLinks.js";
 
@@ -9,12 +10,16 @@ import { FooterLinks } from "./FooterLinks.js";
 // Shared mock presence
 // ---------------------------------------------------------------------------
 
-const presence = createPresence({
-  github: [
-    { url: "https://github.com/personal", label: "Personal" },
-    { url: "https://github.com/work", label: "Work" },
-  ],
-  twitter: "https://x.com/acme",
+let presence: Presence;
+
+beforeAll(async () => {
+  presence = await createPresence({
+    github: [
+      { url: "https://github.com/personal", label: "Personal" },
+      { url: "https://github.com/work", label: "Work" },
+    ],
+    twitter: "https://x.com/acme",
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -22,7 +27,11 @@ const presence = createPresence({
 // ---------------------------------------------------------------------------
 
 describe("<IconLink />", () => {
-  const link = presence.getLinks().find((l) => l.platform === "twitter")!;
+  let link: ReturnType<typeof presence.getLinks>[number];
+
+  beforeAll(() => {
+    link = presence.getLinks().find((l) => l.platform === "twitter")!;
+  });
 
   it("renders an <a> tag with the correct href", () => {
     render(<IconLink link={link} />);

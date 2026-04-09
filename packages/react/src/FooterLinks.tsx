@@ -1,6 +1,5 @@
 import * as React from "react";
-import type { ResolvedLink } from "@presencekit/core";
-import type { createPresence } from "@presencekit/core";
+import type { Presence, ResolvedLink } from "@presencekit/core";
 import { IconLink } from "./IconLink.js";
 
 /**
@@ -17,7 +16,7 @@ export type RenderStrategy = "flat" | "group-expand" | "group-popover";
  */
 export type FooterLinksProps = {
   /** A presence instance returned by `createPresence()`. */
-  presence: ReturnType<typeof createPresence>;
+  presence: Presence;
   /** Only render links matching these platform keys or entry IDs. */
   show?: string[];
   /** Remove links matching these platform keys or entry IDs. */
